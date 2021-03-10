@@ -38,24 +38,11 @@
   (require 'cl-lib)
   (require 'cc-langs)
   (require 'cc-fonts)
-  (require 'cc-menus)
-  (require 'term))
+  (require 'cc-menus))
 
 (eval-and-compile
   ;; fall back on c-mode
   (c-add-language 'arduino-mode 'c-mode))
-
-(require 'flycheck-arduino)
-
-(defgroup arduino-mode nil
-  "Customize arduino-mode."
-  :prefix "arduino-mode-"
-  :group 'arduino)
-
-(defcustom arduino-mode-home "~/Arduino"
-  "The path of ARDUINO_HOME."
-  :type 'directory
-  :group 'arduino-mode)
 
 (c-lang-defconst c-primitive-type-kwds
   arduino (append '(;; Data Types
@@ -126,6 +113,8 @@
              "Mouse")
            (c-lang-const c-primary-expr-kwds)))
 
+
+
 (defgroup arduino nil "Arduino mode customizations"
   :group 'languages)
 
@@ -179,79 +168,8 @@ Value is a symbol.  The possible values are the symbols in the
 
 (defvar arduino-mode-map
   (let ((map (c-make-inherited-keymap)))
-    (define-key map (kbd "C-c C-c") 'arduino-upload)
-    (define-key map (kbd "C-c C-v") 'arduino-verify)
-    (define-key map (kbd "C-c C-m") 'arduino-serial-monitor)
-    (define-key map (kbd "C-c C-x") 'arduino-open-with-arduino)
     map)
   "Keymap used in arduino-mode buffers.")
-
-(easy-menu-define arduino-menu arduino-mode-map "Arduino Mode Commands"
-  (cons "Arduino" (c-lang-const c-mode-menu arduino)))
-
-(easy-menu-add-item arduino-menu
-			              (list "Micro-controller") ["Upload" arduino-upload t])
-(easy-menu-add-item arduino-menu
-		                nil ["----" nil nil])
-(easy-menu-add-item arduino-menu
-		                nil ["Upload" arduino-upload t])
-(easy-menu-add-item arduino-menu
-		                nil ["Verify" arduino-verify t])
-(easy-menu-add-item arduino-menu
-		                nil ["Open with Arduino" arduino-open-with-arduino t])
-(easy-menu-add-item arduino-menu
-		                nil ["Serial monitor" arduino-serial-monitor t])
-
-(defvar arduino-upload-process-buf nil)
-
-(defun arduino-upload ()
-  "Build and upload the sketch to an Arduino board."
-  (interactive)
-  (setq arduino-upload-process-buf (buffer-name))
-  (let* ((proc-name "arduino-upload")
-         (proc-buffer "*arduino-upload*")
-         (proc (make-process
-                :command (list arduino-executable "--upload" (buffer-file-name))
-                :name proc-name
-                :buffer proc-buffer
-                :sentinel (lambda (proc event)
-                            (if (string= event "finished\n")
-                                (progn
-                                  (with-current-buffer arduino-upload-process-buf
-                                    (setq mode-line-process nil))
-                                  (message "Arduino upload succeed."))
-                              (with-current-buffer arduino-upload-process-buf
-                                (display-buffer "*arduino-upload*")))
-                            (setq-local mode-line-process nil)
-                            (with-current-buffer arduino-upload-process-buf
-                              (when spinner-current (spinner-stop)))))))
-    (spinner-start arduino-spinner-type)
-    (setq mode-line-process proc-name)))
-
-(defvar arduino-verify-process-buf nil)
-
-(defun arduino-verify ()
-  "Verify the sketch by building it."
-  (interactive)
-  (setq arduino-verify-process-buf (buffer-name))
-  (let* ((proc-name "arduino-verify")
-         (proc-buffer "*arduino-verify*")
-         (proc (make-process
-                :command (list arduino-executable "--verify" (buffer-file-name))
-                :name proc-name
-                :buffer proc-buffer
-                :sentinel (lambda (proc event)
-                            (if (string= event "finished\n")
-                                (progn
-                                  (with-current-buffer arduino-verify-process-buf
-                                    (setq mode-line-process nil))
-                                  (message "Arduino verify build succeed."))
-                              (display-buffer "*arduino-verify*"))
-                            (setq-local mode-line-process nil)
-                            (with-current-buffer arduino-verify-process-buf
-                              (when spinner-current (spinner-stop)))))))
-    (spinner-start arduino-spinner-type)
-    (setq mode-line-process proc-name)))
 
 (defvar arduino-open-process-buf nil)
 
@@ -277,58 +195,6 @@ Value is a symbol.  The possible values are the symbols in the
     (spinner-start arduino-spinner-type)
     (setq mode-line-process proc-name)))
 
-;;; NOTE: Because command-line arduino does not support search and list out
-;;; boards and libraries. So I will not write a sentinel for installing process.
-(defun arduino-install-boards (board)
-  "Install `BOARD' support for Arduino."
-  (interactive (list (completing-read "Arduino install board: "
-                                      '()
-                                      nil nil
-                                      "arduino:sam")))
-  (start-process
-   "arduino-install-boards"
-   "*arduino-install-boards*"
-   arduino-executable "--install-boards" board))
-
-(defun arduino-install-library (library)
-  "Install `LIBRARY' support for Arduino."
-  (interactive (list (completing-read "Arduino install library: "
-                                      '()
-                                      nil nil
-                                      "Bridge:1.0.0")))
-  (start-process
-   "arduino-install-library"
-   "*arduino-install-library*"
-   arduino-executable "--install-library" library))
-
-(require 'term)
-(defun arduino-serial-monitor (port speed)
-  "Monitor the `SPEED' on serial connection on `PORT' to the Arduino."
-  (interactive (list (serial-read-name) nil))
-  (if (get-buffer-process port)
-	    (switch-to-buffer port)
-    (serial-term port (or speed (serial-read-speed)))))
-
-;;;###autoload
-(defun arduino-sketch-new (sketch)
-  "A command to create new `SKETCH' in ARDUINO_HOME (~/Arduino)."
-  (interactive (list (read-from-minibuffer "Arduino new sketch file: ")))
-  (let ((default-directory (expand-file-name arduino-mode-home)))
-    (find-file sketch)))
-
-;;; generate .clang_complete file for `irony-mode' and `company-irony-c-headers'.
-(defun arduino-generate-include-path-file ()
-  "Generate .clang_complete file for `irony-mode' and `company-irony-c-headers'."
-  (interactive)
-  (let ((default-directory (expand-file-name arduino-mode-home))
-        (filename ".clang_complete"))
-    (if (file-exists-p filename)
-        (if (y-or-n-p ".clang_complete file already exist, do you want to edit it? ")
-            (find-file filename))
-      (with-temp-file filename
-        (insert "-I/home/stardiviner/Arduino/libraries/")))))
-
-
 ;;;###autoload
 (define-derived-mode arduino-mode c-mode "arduino"
   "Major mode for editing Arduino code."
@@ -343,13 +209,9 @@ Value is a symbol.  The possible values are the symbols in the
   ;; level routine `c-basic-common-init' that only makes the necessary
   ;; initialization to get the syntactic analysis and similar things working.
   (c-common-init 'arduino-mode)
-  
-  (when (version<= emacs-version "28.1")
-    (easy-menu-add arduino-menu))
-  (set (make-local-variable 'c-basic-offset) 2)
-  (set (make-local-variable 'tab-width) 2)
 
-  (flycheck-arduino-setup))
+  (set (make-local-variable 'c-basic-offset) 2)
+  (set (make-local-variable 'tab-width) 2))
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.pde\\'" . arduino-mode))
