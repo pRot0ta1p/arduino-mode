@@ -4,7 +4,7 @@
 ;; Authors: Christopher Grim <christopher.grim@gmail.com>
 ;; Maintainer: stardiviner <numbchild@gmail.com>
 ;; Keywords: languages, arduino
-;; Package-Requires: ((emacs "25.1") (spinner "1.7.3"))
+;; Package-Requires: emacs "25.1"
 ;; Package-Version: 1.3.0
 ;; homepage: https://github.com/stardiviner/arduino-mode
 
@@ -32,7 +32,6 @@
 
 ;;; Code:
 (require 'cc-mode)
-(require 'spinner)
 
 (eval-when-compile
   (require 'cl-lib)
@@ -129,15 +128,6 @@ Each list item should be a regexp matching a single identifier."
   :group 'arduino
   :type 'string)
 
-(defcustom arduino-spinner-type 'progress-bar
-  "The spinner type for arduino processes.
-
-Value is a symbol.  The possible values are the symbols in the
-`spinner-types' variable."
-  :type 'symbol
-  :safe #'symbolp
-  :group 'arduino)
-
 (defconst arduino-font-lock-keywords-1 (c-lang-const c-matchers-1 arduino)
   "Minimal highlighting for Arduino mode.")
 
@@ -189,10 +179,7 @@ Value is a symbol.  The possible values are the symbols in the
                                   (with-current-buffer arduino-open-process-buf
                                     (setq mode-line-process nil))
                                   (message "Opened with Arduino succeed.")))
-                            (setq-local mode-line-process nil)
-                            (with-current-buffer arduino-open-process-buf
-                              (when spinner-current (spinner-stop)))))))
-    (spinner-start arduino-spinner-type)
+                            (setq-local mode-line-process nil)))))
     (setq mode-line-process proc-name)))
 
 ;;;###autoload
